@@ -2,6 +2,7 @@ package main
 
 import (
 	"AirPort/internal/config"
+	"AirPort/internal/handlers/user"
 	"AirPort/package/database"
 	"AirPort/package/server"
 	"context"
@@ -39,6 +40,11 @@ func main() {
 	// Инициализация gin
 	router := gin.Default()
 
+	// Инициализация роутов
+	// -- для User
+	userHandler := user.NewHandler(pool)
+	userHandler.RegisterHandler(router)
+
 	// Запуск сервера
 	server := &server.Server{}
 	done := make(chan os.Signal, 1)
@@ -50,7 +56,7 @@ func main() {
 		}
 	}()
 
-	log.Printf("\033[32mСервер запущен на: %s %s\n\033[0m", cfg.Host, cfg.Port)
+	log.Printf("\033[32mСервер запущен на: %s:%s\n\033[0m", cfg.Host, cfg.Port)
 
 	<-done
 
