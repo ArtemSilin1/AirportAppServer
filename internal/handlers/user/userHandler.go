@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	alreadyExistError = "already exist"
+	emailAlreadyExistError    = "email already exist"
+	usernameAlreadyExistError = "username already exist"
 )
 
 type Handler struct {
@@ -43,8 +44,11 @@ func (h *Handler) Register(c *gin.Context) {
 
 	token, err := newUser.RegisterUser(h.db)
 	if err != nil {
-		if err.Error() == alreadyExistError {
-			c.JSON(http.StatusConflict, gin.H{"error": "такой пользователь уже сущевствует"})
+		if err.Error() == usernameAlreadyExistError {
+			c.JSON(http.StatusConflict, gin.H{"error": "пользователь с таким username уже сущевствует"})
+			return
+		} else if err.Error() == emailAlreadyExistError {
+			c.JSON(http.StatusConflict, gin.H{"error": "пользователь с таким email уже сущевствует"})
 			return
 		}
 		fmt.Printf("Ошибка при попытке регистрации: %s", err)

@@ -68,18 +68,32 @@ type Users struct {
 func (u *Users) RegisterUser(db *pgxpool.Pool) (string, error) {
 	ctx := context.Background()
 
-	checkUserExist := `
-	SELECT COUNT(*) 
-	FROM Users 
-		WHERE username = $1 OR email = $2
+	checkUsernameExist := `
+		SELECT COUNT(*) 
+		FROM Users 
+		WHERE username = $1
 	`
 
-	var userCount int
-	if err := db.QueryRow(ctx, checkUserExist, u.Username, u.Email).Scan(&userCount); err != nil {
+	var userCountWithUsername int
+	if err := db.QueryRow(ctx, checkUsernameExist, u.Username).Scan(&userCountWithUsername); err != nil {
 		return "", fmt.Errorf("Ошибка при проверке пользователя: %w", err)
 	}
-	if userCount != 0 {
-		return "", fmt.Errorf(alreadyExistError)
+	if userCountWithUsername != 0 {
+		return "", fmt.Errorf(usernameAlreadyExistError)
+	}
+
+	checkEmailExist := `
+		SELECT COUNT(*) 
+		FROM Users 
+		WHERE email = $1
+	`
+
+	var userCountWithEmail int
+	if err := db.QueryRow(ctx, checkEmailExist, u.Email).Scan(&userCountWithEmail); err != nil {
+		return "", fmt.Errorf("Ошибка при проверке пользователя: %w", err)
+	}
+	if userCountWithEmail != 0 {
+		return "", fmt.Errorf(emailAlreadyExistError)
 	}
 
 	InsertQuery := `
