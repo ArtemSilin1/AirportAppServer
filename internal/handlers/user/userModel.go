@@ -3,12 +3,58 @@ package user
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type SecretJwt struct {
+	Secret string `env:SECRET_JWT`
+}
+
+func (s *SecretJwt) ReadSecret() error {
+	err := cleanenv.ReadConfig("internal/config/.env", s)
+	if err != nil {
+		fmt.Printf("Ошибка при получении секрета: %w", err)
+		return err
+	}
+
+	return nil
+}
+
+func (u *Users) GenerateJWT() (string, error) {
+	var Secret SecretJwt
+	if err := Secret.ReadSecret(); err != nil {
+		fmt.Println("Ошибка при попытке прочитать секрет: %w", err)
+		return "", err
+	}
+
+	claims := jwt.MapClaims{
+		"username": u.Username,
+		"email":    u.Email,
+		"role":     u.UserRole,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	signedToken, err := token.SignedString([]byte(Secret.Secret))
+	if err != nil {
+		return "", fmt.Errorf("Ошибка при создании токена: %w", err)
+	}
+
+	return signedToken, nil
+}
+
+func (u *Users) HashPassword(password string) (string, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("Ошибка при попытке хэшировать пароль: %w", err)
+	}
+
+	return string(hashedPassword), nil
+}
 
 type Users struct {
 	Id       int    `db:"id" json:"id"`
@@ -19,48 +65,21 @@ type Users struct {
 	UserRole bool   `db:"userRole" json:"userRole"`
 }
 
-var secretJwt = []byte("t*8z#7Pk9Q$JmR!fX&LoVz2^BnYGaPqH1SbEw3CfU@XdTl%Vi0NjD4KuMrOeWsCg")
-
-func (u *Users) GenerateJWT() (string, error) {
-	claims := jwt.MapClaims{
-		"username": u.Username,
-		"email":    u.Email,
-		"role":     u.UserRole,
-		"exp":      time.Now().Add(time.Hour * 72).Unix(),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signedToken, err := token.SignedString(secretJwt)
-	if err != nil {
-		return "", fmt.Errorf("Ошибка при создании токена: %s", err)
-	}
-
-	return signedToken, nil
-}
-
-func (u *Users) HashPassword(password string) (string, error) {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", fmt.Errorf("Ошибка при попытке хэшировать пароль: %s", err)
-	}
-
-	return string(hashedPassword), nil
-}
-
 func (u *Users) RegisterUser(db *pgxpool.Pool) (string, error) {
 	ctx := context.Background()
 
 	checkUserExist := `
-		SELECT COUNT(*) 
-		FROM Users 
-		WHERE username = $1
+	SELECT COUNT(*) 
+	FROM Users 
+		WHERE username = $1 OR email = $2
 	`
 
 	var userCount int
-	if err := db.QueryRow(ctx, checkUserExist, u.Username).Scan(&userCount); err != nil {
-		return "", fmt.Errorf("Ошибка при проверке пользователя: %s", err)
+	if err := db.QueryRow(ctx, checkUserExist, u.Username, u.Email).Scan(&userCount); err != nil {
+		return "", fmt.Errorf("Ошибка при проверке пользователя: %w", err)
 	}
 	if userCount != 0 {
-		return "", fmt.Errorf("already exist")
+		return "", fmt.Errorf(alreadyExistError)
 	}
 
 	InsertQuery := `
@@ -85,7 +104,7 @@ func (u *Users) RegisterUser(db *pgxpool.Pool) (string, error) {
 		u.Email,
 		u.UserRole,
 	).Scan(&newUserId); err != nil {
-		return "", fmt.Errorf("Ошибка записи в бд при попытке регистрации: %s", err)
+		return "", fmt.Errorf("Ошибка записи в бд при попытке регистрации: %w", err)
 	}
 
 	token, err := u.GenerateJWT()
@@ -116,7 +135,7 @@ func (u *Users) LoginUser(db *pgxpool.Pool) (string, error) {
 	)
 
 	if err != nil {
-		return "", fmt.Errorf("Ошибка авторизации: %s", err)
+		return "", fmt.Errorf("Ошибка авторизации: %w", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword(
@@ -136,4 +155,20 @@ func (u *Users) LoginUser(db *pgxpool.Pool) (string, error) {
 	}
 
 	return token, nil
+}
+
+func (u *Users) DeleteUser(db *pgxpool.Pool) error {
+	ctx := context.Background()
+
+	query := `
+		DELETE FROM Users
+		WHERE id = $1
+	`
+
+	_, err := db.Exec(ctx, query, u.Id)
+	if err != nil {
+		return fmt.Errorf("Ошибка при удалении: %w", err)
+	}
+
+	return nil
 }

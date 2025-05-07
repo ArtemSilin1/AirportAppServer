@@ -9,6 +9,10 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
+const (
+	alreadyExistError = "already exist"
+)
+
 type Handler struct {
 	db *pgxpool.Pool
 }
@@ -20,6 +24,7 @@ func NewHandler(db *pgxpool.Pool) handlers.Handlers {
 func (h *Handler) RegisterHandler(router *gin.Engine) {
 	router.POST("/users/registration", h.Register)
 	router.POST("/users/login", h.Login)
+	router.DELETE("/user/deleteUser", h.DeleteUser)
 }
 
 func (h *Handler) Register(c *gin.Context) {
@@ -38,6 +43,10 @@ func (h *Handler) Register(c *gin.Context) {
 
 	token, err := newUser.RegisterUser(h.db)
 	if err != nil {
+		if err.Error() == alreadyExistError {
+			c.JSON(http.StatusConflict, gin.H{"error": "такой пользователь уже сущевствует"})
+			return
+		}
 		fmt.Printf("Ошибка при попытке регистрации: %s", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
 		return
@@ -62,4 +71,20 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
+func (h *Handler) DeleteUser(c *gin.Context) {
+	var userToDelete Users
+	if err := c.ShouldBindJSON(&userToDelete); err != nil {
+		fmt.Println("Ошибка при чтеннии JSON: %w", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "внутренняя ошибка сервера"})
+		return
+	}
+
+	if err := userToDelete.DeleteUser(h.db); err != nil {
+		fmt.Printf("Ошибка при попытке удаления аккаунта: %s", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "удалено"})
 }
