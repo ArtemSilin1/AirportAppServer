@@ -2,6 +2,7 @@ package main
 
 import (
 	"AirPort/internal/config"
+	"AirPort/internal/handlers/board"
 	"AirPort/internal/handlers/user"
 	"AirPort/package/database"
 	"AirPort/package/server"
@@ -43,7 +44,7 @@ func main() {
 	// Middleware для CORS
 	router.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -56,6 +57,10 @@ func main() {
 	// -- для User
 	userHandler := user.NewHandler(pool)
 	userHandler.RegisterHandler(router)
+
+	// -- для Board
+	boardHandler := board.NewHandler(pool)
+	boardHandler.RegisterHandler(router)
 
 	// Запуск сервера
 	server := &server.Server{}

@@ -17,7 +17,7 @@ type SecretJwt struct {
 func (s *SecretJwt) ReadSecret() error {
 	err := cleanenv.ReadConfig("internal/config/.env", s)
 	if err != nil {
-		fmt.Printf("Ошибка при получении секрета: %w", err)
+		fmt.Printf("ошибка при получении секрета: %w", err)
 		return err
 	}
 
@@ -27,7 +27,7 @@ func (s *SecretJwt) ReadSecret() error {
 func (u *Users) GenerateJWT() (string, error) {
 	var Secret SecretJwt
 	if err := Secret.ReadSecret(); err != nil {
-		fmt.Println("Ошибка при попытке прочитать секрет: %w", err)
+		fmt.Println("ошибка при попытке прочитать секрет: %w", err)
 		return "", err
 	}
 
@@ -35,13 +35,14 @@ func (u *Users) GenerateJWT() (string, error) {
 		"username": u.Username,
 		"email":    u.Email,
 		"role":     u.UserRole,
+		"name":     u.Name,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	signedToken, err := token.SignedString([]byte(Secret.Secret))
 	if err != nil {
-		return "", fmt.Errorf("Ошибка при создании токена: %w", err)
+		return "", fmt.Errorf("ошибка при создании токена: %w", err)
 	}
 
 	return signedToken, nil
@@ -50,7 +51,7 @@ func (u *Users) GenerateJWT() (string, error) {
 func (u *Users) HashPassword(password string) (string, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return "", fmt.Errorf("Ошибка при попытке хэшировать пароль: %w", err)
+		return "", fmt.Errorf("ошибка при попытке хэшировать пароль: %w", err)
 	}
 
 	return string(hashedPassword), nil
@@ -63,6 +64,30 @@ type Users struct {
 	Password string `db:"password" json:"password"`
 	Email    string `db:"email" json:"email"`
 	UserRole bool   `db:"userRole" json:"userRole"`
+}
+
+func (u *Users) CheckAccPassword(db *pgxpool.Pool) error {
+	ctx := context.Background()
+
+	getPasswordQuery := `
+		SELECT password
+		FROM Users
+		WHERE username = $1;
+	`
+
+	var dbUser Users
+	if err := db.QueryRow(ctx, getPasswordQuery, u.Username).Scan(&dbUser.Password); err != nil {
+		return fmt.Errorf("ошибка при попытке получить пароль из базы данных: %s", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(dbUser.Password),
+		[]byte(u.Password),
+	); err != nil {
+		return fmt.Errorf("неверные данные")
+	}
+
+	return nil
 }
 
 func (u *Users) RegisterUser(db *pgxpool.Pool) (string, error) {
@@ -149,14 +174,14 @@ func (u *Users) LoginUser(db *pgxpool.Pool) (string, error) {
 	)
 
 	if err != nil {
-		return "", fmt.Errorf("Ошибка авторизации: %w", err)
+		return "", fmt.Errorf("ошибка авторизации: %w", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword(
 		[]byte(dbUser.Password),
 		[]byte(u.Password),
 	); err != nil {
-		return "", fmt.Errorf("Неверные данные")
+		return "", fmt.Errorf("неверные данные")
 	}
 
 	u.Id = dbUser.Id
@@ -181,7 +206,7 @@ func (u *Users) DeleteUser(db *pgxpool.Pool) error {
 
 	_, err := db.Exec(ctx, query, u.Id)
 	if err != nil {
-		return fmt.Errorf("Ошибка при удалении: %w", err)
+		return fmt.Errorf("ошибка при удалении: %w", err)
 	}
 
 	return nil
