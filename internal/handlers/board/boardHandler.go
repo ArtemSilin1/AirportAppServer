@@ -23,6 +23,7 @@ func (h *Handler) RegisterHandler(router *gin.Engine) {
 	router.GET("/board/getBoard", h.GetBoard)
 	router.POST("board/createBoardItem", h.CreateBoardItem)
 	router.PUT("board/updateBoardStatus", h.UpdateBoardStatus)
+	router.DELETE("board/deleteFlight", h.DeleteFlight)
 }
 
 func (h *Handler) GetBoard(c *gin.Context) {
@@ -44,26 +45,42 @@ func (h *Handler) GetBoard(c *gin.Context) {
 }
 
 func (h *Handler) CreateBoardItem(c *gin.Context) {
-	var newBoardItem Board
+	type RequestData struct {
+		User  user.Users `json:"user"`
+		Board Board      `json:"board"`
+	}
 
-	if err := c.ShouldBindJSON(&newBoardItem); err != nil {
+	var requestData RequestData
+
+	if err := c.ShouldBindJSON(&requestData); err != nil {
 		fmt.Printf("Ошибка при чтении данных JSON: %s", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
 		return
 	}
 
-	if err := newBoardItem.CreateBoardItem(h.db); err != nil {
-		if logErr := logs.NewLog("Доска", "board", err); logErr != nil {
-			fmt.Printf("Ошибка логирования: %s", logErr)
+	err := requestData.User.CheckAccPassword(h.db)
+	if err != nil {
+		if err.Error() == "неверные данные" {
+			if logErr := logs.NewLog("Доска", "board", err); logErr != nil {
+				fmt.Printf("Ошибка логирования: %s", logErr)
+			}
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "в доступе отказано"})
+			return
 		}
-		fmt.Printf("Ошибка при попытке сосздать рейс: %s", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "внутренняя ошибка сервера"})
+		fmt.Printf("Ошибка при попытке изменить статус рейса: %s", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
 		return
 	}
 
-	if logErr := logs.NewLog("Доска", "board", nil); logErr != nil {
-		fmt.Printf("Ошибка логирования: %s", logErr)
+	if err := requestData.Board.CreateBoardItem(h.db); err != nil {
+		if logErr := logs.NewLog("Доска", "board", err); logErr != nil {
+			fmt.Printf("Ошибка логирования: %s", logErr)
+		}
+		fmt.Printf("Ошибка при попытке создать рейс: %s", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
+		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Создано"})
 }
 
@@ -103,6 +120,49 @@ func (h *Handler) UpdateBoardStatus(c *gin.Context) {
 			fmt.Printf("Ошибка логирования: %s", logErr)
 		}
 		fmt.Printf("Ошибка при попытке создать рейс: %s", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "успешно"})
+}
+
+func (h *Handler) DeleteFlight(c *gin.Context) {
+	type RequestData struct {
+		User  user.Users `json:"user"`
+		Board Board      `json:"board"`
+	}
+
+	var requestData RequestData
+
+	if err := c.ShouldBindJSON(&requestData); err != nil {
+		if logErr := logs.NewLog("Доска", "board", err); logErr != nil {
+			fmt.Printf("Ошибка логирования: %s", logErr)
+		}
+		fmt.Printf("Ошибка при чтении данных JSON: %s", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
+		return
+	}
+
+	err := requestData.User.CheckAccPassword(h.db)
+	if err != nil {
+		if err.Error() == "неверные данные" {
+			if logErr := logs.NewLog("Доска", "board", err); logErr != nil {
+				fmt.Printf("Ошибка логирования: %s", logErr)
+			}
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "в доступе отказано"})
+			return
+		}
+		fmt.Printf("Ошибка при попытке удалить рейс: %s", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
+		return
+	}
+
+	if err := requestData.Board.DeleteBoardItem(h.db); err != nil {
+		if logErr := logs.NewLog("Доска", "board", err); logErr != nil {
+			fmt.Printf("Ошибка логирования: %s", logErr)
+		}
+		fmt.Printf("Ошибка при попытке удалить рейс: %s", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
 		return
 	}

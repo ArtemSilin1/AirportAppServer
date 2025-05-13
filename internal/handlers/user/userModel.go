@@ -17,8 +17,7 @@ type SecretJwt struct {
 func (s *SecretJwt) ReadSecret() error {
 	err := cleanenv.ReadConfig("internal/config/.env", s)
 	if err != nil {
-		fmt.Printf("ошибка при получении секрета: %w", err)
-		return err
+		return fmt.Errorf("ошибка при получении секрета: %w", err)
 	}
 
 	return nil
@@ -32,10 +31,11 @@ func (u *Users) GenerateJWT() (string, error) {
 	}
 
 	claims := jwt.MapClaims{
-		"username": u.Username,
-		"email":    u.Email,
-		"role":     u.UserRole,
-		"name":     u.Name,
+		"username":    u.Username,
+		"email":       u.Email,
+		"role":        u.UserRole,
+		"name":        u.Name,
+		"masterAdmin": u.MasterAdmin,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -58,12 +58,13 @@ func (u *Users) HashPassword(password string) (string, error) {
 }
 
 type Users struct {
-	Id       int    `db:"id" json:"id"`
-	Username string `db:"username" json:"username"`
-	Name     string `db:"name" json:"name"`
-	Password string `db:"password" json:"password"`
-	Email    string `db:"email" json:"email"`
-	UserRole bool   `db:"userRole" json:"userRole"`
+	Id          int    `db:"id" json:"id"`
+	Username    string `db:"username" json:"username"`
+	Name        string `db:"name" json:"name"`
+	Password    string `db:"password" json:"password"`
+	Email       string `db:"email" json:"email"`
+	UserRole    bool   `db:"userRole" json:"userRole"`
+	MasterAdmin bool   `db:"masterAdmin"`
 }
 
 func (u *Users) CheckAccPassword(db *pgxpool.Pool) error {
@@ -101,10 +102,10 @@ func (u *Users) RegisterUser(db *pgxpool.Pool) (string, error) {
 
 	var userCountWithUsername int
 	if err := db.QueryRow(ctx, checkUsernameExist, u.Username).Scan(&userCountWithUsername); err != nil {
-		return "", fmt.Errorf("Ошибка при проверке пользователя: %w", err)
+		return "", fmt.Errorf("ошибка при проверке пользователя: %w", err)
 	}
 	if userCountWithUsername != 0 {
-		return "", fmt.Errorf(usernameAlreadyExistError)
+		return "", fmt.Errorf("ошибка: %s", usernameAlreadyExistError)
 	}
 
 	checkEmailExist := `
@@ -115,16 +116,16 @@ func (u *Users) RegisterUser(db *pgxpool.Pool) (string, error) {
 
 	var userCountWithEmail int
 	if err := db.QueryRow(ctx, checkEmailExist, u.Email).Scan(&userCountWithEmail); err != nil {
-		return "", fmt.Errorf("Ошибка при проверке пользователя: %w", err)
+		return "", fmt.Errorf("ошибка при проверке пользователя: %w", err)
 	}
 	if userCountWithEmail != 0 {
-		return "", fmt.Errorf(emailAlreadyExistError)
+		return "", fmt.Errorf("ошибка: %s", emailAlreadyExistError)
 	}
 
 	InsertQuery := `
 		INSERT INTO Users (username, name, password, email, userRole)
 		VALUES
-			($1, $2, $3, $4, $5)
+			($1, $2, $3, $4, false)
 		RETURNING id
 	`
 
@@ -141,9 +142,8 @@ func (u *Users) RegisterUser(db *pgxpool.Pool) (string, error) {
 		u.Name,
 		hashedPassword,
 		u.Email,
-		u.UserRole,
 	).Scan(&newUserId); err != nil {
-		return "", fmt.Errorf("Ошибка записи в бд при попытке регистрации: %w", err)
+		return "", fmt.Errorf("ошибка записи в бд при попытке регистрации: %w", err)
 	}
 
 	token, err := u.GenerateJWT()
@@ -158,7 +158,7 @@ func (u *Users) LoginUser(db *pgxpool.Pool) (string, error) {
 	ctx := context.Background()
 
 	query := `
-   	SELECT id, username, name, password, email, userrole 
+   	SELECT id, username, name, password, email, userrole, masterAdmin 
    	FROM Users 
    	WHERE username = $1
 	`
@@ -171,6 +171,7 @@ func (u *Users) LoginUser(db *pgxpool.Pool) (string, error) {
 		&dbUser.Password,
 		&dbUser.Email,
 		&dbUser.UserRole,
+		&dbUser.MasterAdmin,
 	)
 
 	if err != nil {
@@ -210,4 +211,44 @@ func (u *Users) DeleteUser(db *pgxpool.Pool) error {
 	}
 
 	return nil
+}
+
+func (u *Users) UpdateUserRole(db *pgxpool.Pool) (string, error) {
+	ctx := context.Background()
+
+	updateQuery := `
+		UPDATE Users	
+		SET userrole = true 
+		WHERE username = $1
+	`
+
+	_, err := db.Exec(ctx, updateQuery, u.Username)
+	if err != nil {
+		return "", fmt.Errorf("ошибка при обновлении роли: %w", err)
+	}
+
+	selectQuery := `
+		SELECT id, username, name, password, email, userrole 
+		FROM Users 
+		WHERE username = $1
+	`
+
+	var userNewRole Users
+	if err := db.QueryRow(ctx, selectQuery, u.Username).Scan(
+		&userNewRole.Id,
+		&userNewRole.Username,
+		&userNewRole.Name,
+		&userNewRole.Password,
+		&userNewRole.Email,
+		&userNewRole.UserRole,
+	); err != nil {
+		return "", fmt.Errorf("ошибка при получении обновлённого пользователя: %w", err)
+	}
+
+	token, err := userNewRole.GenerateJWT()
+	if err != nil {
+		return "", fmt.Errorf("ошибка при генерации токена: %w", err)
+	}
+
+	return token, nil
 }

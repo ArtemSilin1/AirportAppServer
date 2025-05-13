@@ -61,9 +61,6 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	if err := logs.NewLog("Регистрация", "user", nil); err != nil {
-		fmt.Printf("Ошибка логирования: %s", err.Error())
-	}
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 
@@ -85,9 +82,6 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	if logErr := logs.NewLog("Вход в аккаунт", "user", nil); logErr != nil {
-		fmt.Printf("Ошибка логирования: %s", logErr.Error())
-	}
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 
@@ -105,10 +99,6 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		}
 		fmt.Printf("Ошибка при попытке удаления аккаунта: %s", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
-	}
-
-	if logErr := logs.NewLog("Удаление пользователя", "user", nil); logErr != nil {
-		fmt.Printf("Ошибка логирования: %s", logErr.Error())
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "удалено"})
 }

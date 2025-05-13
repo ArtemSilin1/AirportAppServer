@@ -23,7 +23,7 @@ const (
 )
 
 func (b *Board) CreateBoardItem(db *pgxpool.Pool) error {
-	if len(b.FlightNumber) < 3 || len(b.FlightNumber) > 6 {
+	if len(b.FlightNumber) != 6 {
 		return fmt.Errorf("недопустимый номер рейса")
 	}
 
@@ -49,8 +49,8 @@ func (b *Board) CreateBoardItem(db *pgxpool.Pool) error {
 	}
 
 	query := `
-		INSERT INTO Board (flightNumber, appointment, departure, status)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO Board (flightNumber, appointment, departure, status, status_change_time)
+		VALUES ($1, $2, $3, 'По расписанию', NOW())
 	`
 
 	if _, err := db.Exec(
@@ -59,9 +59,23 @@ func (b *Board) CreateBoardItem(db *pgxpool.Pool) error {
 		b.FlightNumber,
 		b.Appointment,
 		departureTime,
-		DefaultStatus,
 	); err != nil {
 		return fmt.Errorf("ошибка при добавлении рейса: %w", err)
+	}
+
+	return nil
+}
+
+func (b *Board) DeleteBoardItem(db *pgxpool.Pool) error {
+	ctx := context.Background()
+
+	query := `
+		DELETE FROM Board
+		WHERE id = $1
+	`
+	_, err := db.Exec(ctx, query, b.Id)
+	if err != nil {
+		return fmt.Errorf("Ошибка при попытке удалить из бд: %s", err)
 	}
 
 	return nil
