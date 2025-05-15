@@ -17,7 +17,7 @@ type Ticket struct {
 }
 
 func (t *Ticket) CreateNewTicket(db *pgxpool.Pool) error {
-	randomNumber := rand.Intn(35000-19000+1) + 19000
+	randomTikcetPrice := rand.Intn(35000-19000+1) + 19000
 
 	letters := []rune{'A', 'B', 'C'}
 	letter := letters[rand.Intn(len(letters))]
@@ -32,7 +32,7 @@ func (t *Ticket) CreateNewTicket(db *pgxpool.Pool) error {
 			($1, $2, $3, $4)
 	`
 
-	_, err := db.Exec(ctx, query, t.UserId, t.FlightId, seatNumber, randomNumber)
+	_, err := db.Exec(ctx, query, t.UserId, t.FlightId, seatNumber, randomTikcetPrice)
 	if err != nil {
 		return err
 	}
@@ -40,28 +40,32 @@ func (t *Ticket) CreateNewTicket(db *pgxpool.Pool) error {
 	return nil
 }
 
-func (t *Ticket) GetAllUserTickets(db *pgxpool.Pool) ([]Ticket, error) {
+type UserTicketResponse struct {
+	FlightNumber string `json:"flightId"`
+	SeatNumber   string `json:"seatNumber"`
+	Price        int    `json:"price"`
+}
+
+func (t *Ticket) GetAllUserTickets(db *pgxpool.Pool) ([]UserTicketResponse, error) {
 	ctx := context.Background()
 
 	query := `
-		SELECT Board.flightNumber, Board.appointment, seatNumber
-		FROM Tickets
-		JOIN Board 
-		ON Board.id = Tickets.id
-		WHERE userId = $1
-	`
+      SELECT Board.flightNumber, Tickets.seatNumber, Tickets.price
+      FROM Tickets
+      JOIN Board ON Board.id = Tickets.flightId
+      WHERE Tickets.userId = $1
+   `
 
 	rows, err := db.Query(ctx, query, t.UserId)
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
 
-	var allTickets []Ticket
+	var allTickets []UserTicketResponse
 	for rows.Next() {
-		var ticket Ticket
-		if err := rows.Scan(&ticket); err != nil {
+		var ticket UserTicketResponse
+		if err := rows.Scan(&ticket.FlightNumber, &ticket.SeatNumber, &ticket.Price); err != nil {
 			return nil, err
 		}
 		allTickets = append(allTickets, ticket)

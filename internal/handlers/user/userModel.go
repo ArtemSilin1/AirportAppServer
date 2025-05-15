@@ -31,6 +31,7 @@ func (u *Users) GenerateJWT() (string, error) {
 	}
 
 	claims := jwt.MapClaims{
+		"id":          u.Id,
 		"username":    u.Username,
 		"email":       u.Email,
 		"role":        u.UserRole,

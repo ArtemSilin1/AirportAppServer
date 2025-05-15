@@ -25,26 +25,29 @@ func (h *Handler) RegisterHandler(router *gin.Engine) {
 }
 
 func (h *Handler) GetUserTickets(c *gin.Context) {
-	var Ticket Ticket
-	if err := c.ShouldBindJSON(&Ticket); err != nil {
-		if logErr := logs.NewLog("Билет", "ticket", err); logErr != nil {
-			fmt.Printf("Ошибка логирования: %s", logErr)
-		}
-		fmt.Printf("Ошибка при чтении данных JSON: %s", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
+	var request struct {
+		UserId int `json:"user_id"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		logs.NewLog("Ticket", "ticket", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
 
-	rows, err := Ticket.GetAllUserTickets(h.db)
+	ticket := Ticket{UserId: request.UserId}
+	userTickets, err := ticket.GetAllUserTickets(h.db)
 	if err != nil {
-		if logErr := logs.NewLog("Билет", "ticket", err); logErr != nil {
-			fmt.Printf("Ошибка логирования: %s", logErr)
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
+		logs.NewLog("Ticket", "ticket", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"rows": rows})
+	if len(userTickets) == 0 {
+		c.JSON(http.StatusOK, gin.H{"rows": []interface{}{}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"rows": userTickets})
 }
 
 func (h *Handler) CreateUserTicket(c *gin.Context) {
