@@ -51,7 +51,7 @@ func (b *Board) CreateBoardItem(db *pgxpool.Pool) error {
 
 	query := `
 		INSERT INTO Board (flightNumber, appointment, departure, status, status_change_time)
-		VALUES ($1, $2, $3, 'По расписанию', NOW())
+		VALUES ($1, $2, $3, 'Регистрация', NOW())
 	`
 
 	if _, err := db.Exec(
@@ -76,7 +76,7 @@ func (b *Board) DeleteBoardItem(db *pgxpool.Pool) error {
 	`
 	_, err := db.Exec(ctx, query, b.Id)
 	if err != nil {
-		return fmt.Errorf("Ошибка при попытке удалить из бд: %s", err)
+		return fmt.Errorf("ошибка при попытке удалить из бд: %s", err)
 	}
 
 	return nil

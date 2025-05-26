@@ -3,6 +3,7 @@ package main
 import (
 	"AirPort/internal/config"
 	"AirPort/internal/handlers/board"
+	"AirPort/internal/handlers/report"
 	"AirPort/internal/handlers/tickets"
 	"AirPort/internal/handlers/user"
 	control "AirPort/internal/handlers/userControl"
@@ -71,6 +72,10 @@ func main() {
 	// -- для Tickets
 	ticketsHandler := tickets.NewHandler(pool)
 	ticketsHandler.RegisterHandler(router)
+
+	// -- для Report
+	reportHandler := report.NewHandler(pool)
+	reportHandler.RegisterHandler(router)
 
 	// Запуск сервера
 	server := &server.Server{}
