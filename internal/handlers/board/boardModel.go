@@ -9,6 +9,12 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
+const (
+	DefaultStatus  = "Регистрация"
+	StatusCanceled = "Отменён"
+	TimeFormat     = "2006-01-02 15:04:05"
+)
+
 type Board struct {
 	Id           int    `db:"id" json:"id"`
 	FlightNumber string `db:"flightNumber" json:"flightNumber"`
@@ -16,12 +22,6 @@ type Board struct {
 	Departure    string `db:"departure" json:"departure"`
 	Status       string `db:"status" json:"status"`
 }
-
-const (
-	DefaultStatus  = "Регистрация"
-	StatusCanceled = "Отменён"
-	TimeFormat     = "2006-01-02 15:04:05"
-)
 
 func (b *Board) CreateBoardItem(db *pgxpool.Pool) error {
 	if len(b.FlightNumber) != 6 {
@@ -208,9 +208,9 @@ func (b *Board) SelectAllFlight(db *pgxpool.Pool) ([]Board, error) {
 	ctx := context.Background()
 
 	query := `
-      SELECT id, appointment 
-      FROM Board
-      WHERE status = 'Регистрация'
+    	SELECT id, appointment 
+    	FROM Board
+    	WHERE status = 'Регистрация'
     `
 
 	rows, err := db.Query(ctx, query)

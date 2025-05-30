@@ -30,9 +30,25 @@ func (t *Ticket) CreateNewTicket(db *pgxpool.Pool) error {
 		INSERT INTO Tickets(userId, flightId, seatNumber, price)
 		VALUES
 			($1, $2, $3, $4)
+		RETURNING id
 	`
 
-	_, err := db.Exec(ctx, query, t.UserId, t.FlightId, seatNumber, randomTikcetPrice)
+	var ticket_id int
+
+	err := db.QueryRow(ctx, query, t.UserId, t.FlightId, seatNumber, randomTikcetPrice).Scan(
+		&ticket_id,
+	)
+	if err != nil {
+		return err
+	}
+
+	addNotificationQuery := `
+		INSERT INTO Notifications (user_id, ticket_id)
+		VALUES
+			($1, $2)
+	`
+
+	_, err = db.Exec(ctx, addNotificationQuery, t.UserId, ticket_id)
 	if err != nil {
 		return err
 	}

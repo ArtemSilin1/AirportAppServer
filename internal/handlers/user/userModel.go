@@ -10,6 +10,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var (
+	TimeFormat = "2006-01-02 15:04:05"
+)
+
 type SecretJwt struct {
 	Secret string `env:SECRET_JWT`
 }
@@ -252,4 +256,41 @@ func (u *Users) UpdateUserRole(db *pgxpool.Pool) (string, error) {
 	}
 
 	return token, nil
+}
+
+type Notification struct {
+	SeatNumber string
+	Date       string
+}
+
+func (u *Users) GetAllNotifications(db *pgxpool.Pool) ([]Notification, error) {
+	ctx := context.Background()
+
+	query := `
+	    SELECT Tickets.seatNumber, TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS') as date
+	    FROM Notifications
+		JOIN Tickets ON Tickets.id = ticket_id
+	    WHERE user_id = $1
+	`
+
+	rows, err := db.Query(ctx, query, u.Id)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка получения уведомлений: %w", err)
+	}
+	defer rows.Close()
+
+	var notifications []Notification
+	for rows.Next() {
+		var noti Notification
+		if err := rows.Scan(&noti.SeatNumber, &noti.Date); err != nil {
+			return nil, fmt.Errorf("ошибка получения уведомлений: %w", err)
+		}
+		notifications = append(notifications, noti)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка получения массива: %w", err)
+	}
+
+	return notifications, nil
 }

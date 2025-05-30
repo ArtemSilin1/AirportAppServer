@@ -29,7 +29,7 @@ func (r *Report) GetNewReportData(db *pgxpool.Pool) error {
 	case 3:
 		selectedIntervalOption = "year"
 	default:
-		fmt.Errorf("неподдерживаемый интервал")
+		return fmt.Errorf("неподдерживаемый интвервал")
 	}
 
 	query := `

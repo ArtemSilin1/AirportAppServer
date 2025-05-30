@@ -27,6 +27,7 @@ func (h *Handler) RegisterHandler(router *gin.Engine) {
 	router.POST("/users/registration", h.Register)
 	router.POST("/users/login", h.Login)
 	router.DELETE("/user/deleteUser", h.DeleteUser)
+	router.POST("/user/get_user_notifications", h.GetUserNotifications)
 }
 
 func (h *Handler) Register(c *gin.Context) {
@@ -101,4 +102,27 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "внутренняя ошибка сервера"})
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "удалено"})
+}
+
+func (h *Handler) GetUserNotifications(c *gin.Context) {
+	var userToGet Users
+	if err := c.ShouldBindJSON(&userToGet); err != nil {
+		fmt.Println("Ошибка при чтеннии JSON: %w", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "внутренняя ошибка сервера"})
+		return
+	}
+
+	notifications, err := userToGet.GetAllNotifications(h.db)
+	if err != nil {
+		if logErr := logs.NewLog("Получение уведомлений", "user", err); logErr != nil {
+			fmt.Printf("Ошибка логирования: %s\n", logErr.Error())
+		}
+		fmt.Printf("Ошибка при получении уведомлений: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ошибка при получении уведомлений"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"notifications": notifications,
+	})
 }
